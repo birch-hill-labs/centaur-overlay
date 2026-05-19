@@ -1,0 +1,9 @@
+[project]
+name = "acme-crm"
+version = "0.1.0"
+description = "Example Centaur overlay CRM tool"
+requires-python = ">=3.11"
+dependencies = ["click>=8.1.7"]
+
+[project.scripts]
+acme-crm = "cli:main"
