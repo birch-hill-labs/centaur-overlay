@@ -9,6 +9,8 @@ Birch Hill Holdings' institutional memory lives as a markdown obsidian vault, mi
 
 ## When to use
 
+**Default posture: take one beat to consider the vault on every Slack mention.** The cost of one extra `obsidian_vault.search` is much lower than the cost of giving a generic answer when the team has internal context on the topic.
+
 Reach for `obsidian_vault` **first**, before websearch, whenever the request involves:
 - Birch Hill's own decisions, strategy, deals, counterparties, or operations
 - The RWASP financial model, DCV, Engine 1/Engine 2, Lender returns, atlas/rwasp content
@@ -19,7 +21,17 @@ Reach for `obsidian_vault` **first**, before websearch, whenever the request inv
 - Any `[[wikilink]]`-style references
 - ADDING / UPDATING / DELETING vault content
 
-If the question is about general world knowledge (public news, third-party docs, current prices), skip this tool and go to websearch.
+If the question is unambiguously about general world knowledge (public news, third-party docs, current prices, generic how-tos), skip this tool and go to websearch.
+
+### Channel-driven defaults
+
+Use the calling Slack channel as a strong prior:
+
+- **Knowledge / strategy / ops channels** (channel name contains `knowledge`, `strategy`, `ops`, `deal`, `workbench`, `rwasp`, `atlas`, `counterparty`, `briefing`, `research`, `onboarding`, or matches `#team-knowledge` exactly): **vault-first regardless of how the question is phrased.** Start with `tree` or `search` before composing any reply.
+- **Casual channels** (`random`, `lunch`, `social`, `fun`, `coffee`): skip the vault unless the question is explicitly internal.
+- **Everything else** (`#general`, `#bots`, etc.): use the default reflex — query the vault if the question is plausibly internal, skip it otherwise.
+
+You can resolve a channel's name from its ID via the `slack` tool (`conversations.info`). Look it up once per session; channel mappings don't change mid-thread.
 
 ## Read workflow
 
