@@ -13,7 +13,7 @@ deployment mounts at runtime.
 .agents/skills/
   birch-hill-vault/      When + how to use the obsidian_vault tool
 tools/
-  obsidian_vault/        Read birch-hill-labs/obsidian-vault via GitHub API
+  obsidian_vault/        Read + propose-via-PR access to birch-hill-labs/obsidian-vault
 services/sandbox/
   SYSTEM_PROMPT.md       Birch Hill agent voice + posture
 ```
@@ -22,28 +22,47 @@ services/sandbox/
 
 ### `obsidian_vault`
 
-Read-only access to Birch Hill's institutional knowledge in the private
+Two-way access to Birch Hill's institutional knowledge in the private
 [`birch-hill-labs/obsidian-vault`](https://github.com/birch-hill-labs/obsidian-vault)
-repo. Iron-proxy injects `GITHUB_VAULT_TOKEN` (a GitHub PAT scoped to that
-repo with `contents:read`) on outbound requests to `api.github.com`.
+repo via the GitHub REST API.
 
-Methods: `read`, `list_dir`, `search`, `tree`.
+**Reads** are immediate:
+`read`, `list_dir`, `search`, `tree`.
 
-Required 1Password vault item: `GITHUB_VAULT_TOKEN` (CONCEALED field named
-`credential`) in the `Birch Hill Centaur Vault`.
+**Writes** open a pull request against `main`. Centaur never pushes to `main`
+directly. The skill enforces a draft-in-Slack → confirm → PR flow so users
+review the change before it becomes a PR:
+`propose_create`, `propose_edit`, `propose_append`, `propose_delete`, `list_proposals`.
+
+Branch protection on `main` (configure on GitHub) is the actual gate for
+what lands in the vault.
+
+#### Required out-of-band setup
+
+1. **1Password vault item** `GITHUB_VAULT_TOKEN` (CONCEALED field `credential`)
+   in `Birch Hill Centaur Vault`. Value: `Bearer <ghp_...>` where the token
+   is a fine-grained PAT scoped to `birch-hill-labs/obsidian-vault` with:
+   - Contents: **Read and write**
+   - Pull requests: **Read and write**
+   - Metadata: **Read**
+2. **Branch protection on `main`** in the vault repo: require at least 1
+   reviewer, block direct pushes. (Settings → Branches → Branch protection rules.)
 
 ## Phase plan
 
-- **v1 (this commit):** Read-only `obsidian_vault` tool + `birch-hill-vault`
-  skill + BH-specific system prompt. Uniform vault access for all Slack
-  users.
+- **v1 (this commit):** Read + propose-via-PR `obsidian_vault` tool, the
+  `birch-hill-vault` skill enforcing draft → confirm → PR, BH-specific
+  system prompt. No user-role enforcement at the tool layer; anyone who
+  can @mention Centaur can read everything and propose changes to anywhere.
 - **Phase 2:** Port Connor's per-seat Claude Code skills into
   `.agents/skills/` so the team shares them via Slack.
-- **Phase 3:** Postgres-backed RBAC table consulted before each
-  `obsidian_vault.read` call. Only Connor can mutate roles.
+- **Phase 3 — vault RBAC:** Postgres-backed `user_roles` table. Each role
+  has `allowed_path_prefixes`. `read` / `list_dir` / `search` / `tree`
+  filter to allowed prefixes for the calling Slack user; `propose_*` rejects
+  changes outside their allowed prefixes. Only admin role can mutate roles
+  (Connor's Slack ID hardcoded as bootstrap admin).
 - **Phase 4:** `/onboard` Slack slash command + onboarding persona + skill.
-- **Phase 5:** Per-user token-usage tracking middleware so we can
-  chargeback / throttle Slack users.
+- **Phase 5:** Per-user token-usage tracking middleware (chargeback / throttle).
 
 See the parent [centaur-infra](https://github.com/birch-hill-labs/centaur-infra)
 fork for cluster + image-tag wiring.

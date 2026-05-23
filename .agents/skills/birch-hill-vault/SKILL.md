@@ -1,49 +1,74 @@
 ---
 name: birch-hill-vault
-description: Use whenever a question references Birch Hill's institutional knowledge — counterparty briefs, atlas/rwasp financial model, daily notes, knowledge graph, onboarding docs, deal flow, or anything that would live in `~/Desktop/BIrchHill/obsidian-vault/` on Connor's laptop. Use BEFORE searching the web for anything that might be internal.
+description: Use whenever a question references Birch Hill's institutional knowledge — counterparty briefs, atlas/rwasp financial model, daily notes, knowledge graph, onboarding docs, deal flow, or anything that would live in `~/Desktop/BIrchHill/obsidian-vault/` on Connor's laptop. Use BEFORE searching the web for anything that might be internal. Also use when the user asks to ADD, UPDATE, APPEND TO, or DELETE vault content — Centaur proposes the change as a GitHub PR rather than writing directly.
 ---
 
 # Birch Hill Vault
 
-Birch Hill Holdings maintains its institutional memory as a markdown obsidian vault, mirrored to the private GitHub repo `birch-hill-labs/obsidian-vault`. The `obsidian_vault` tool reads from that repo.
+Birch Hill Holdings' institutional memory lives as a markdown obsidian vault, mirrored to `birch-hill-labs/obsidian-vault`. The `obsidian_vault` tool reads from and proposes changes to that repo.
 
-## When to use this skill
+## When to use
 
-Use the `obsidian_vault` tool **first**, before any web search, whenever the request involves:
+Reach for `obsidian_vault` **first**, before websearch, whenever the request involves:
 - Birch Hill's own decisions, strategy, deals, counterparties, or operations
-- The RWASP financial model, DCV, Engine 1/Engine 2, Lender returns, or any atlas/rwasp content
+- The RWASP financial model, DCV, Engine 1/Engine 2, Lender returns, atlas/rwasp content
 - Counterparty briefs (Sky, Ethena, Cap, Andrena, Aon-DeFi, etc.)
 - Daily notes / session recaps
 - Knowledge-graph nodes (`knowledge/`)
 - Onboarding material (`onboarding/`)
-- Any `[[wikilink]]`-style references the user makes
-- Anything the user would expect Connor to "have in his vault"
+- Any `[[wikilink]]`-style references
+- ADDING / UPDATING / DELETING vault content
 
-If the question is about general world knowledge (current prices, public news, third-party docs, etc.) skip this tool and go to websearch.
+If the question is about general world knowledge (public news, third-party docs, current prices), skip this tool and go to websearch.
 
-## Workflow
+## Read workflow
 
-1. **Don't guess the path.** Use `obsidian_vault.tree(max_depth=2)` if you have no idea where to look, OR `obsidian_vault.list_dir("<subdir>")` to scope.
-2. **Search by content** with `obsidian_vault.search(query, path_prefix="<optional scope>")`. Snippets may be missing — follow up with `read` on the top result.
-3. **Read full files** with `obsidian_vault.read(path)`. Cap is 256 KiB per read; if a file is truncated, that's flagged in the response.
-4. **Binary files** (`.docx`, `.pptx`, `.xlsx`, `.pdf`) come back with `is_binary: true` and a `html_url`. Hand the URL back to the user — don't try to parse them.
-5. **Cite the path** in your response (e.g., `from atlas/rwasp/workbench.md`) so the user can verify.
+1. Don't guess paths. Use `obsidian_vault.tree(max_depth=2)` to orient, or `list_dir("<subdir>")` to scope.
+2. `obsidian_vault.search(query, path_prefix="<optional>")` for content lookup. Snippets may be missing — follow up with `read` on top results.
+3. `obsidian_vault.read(path)` for full content. 256 KiB cap; truncation flagged in response.
+4. Binary files (`.docx`, `.pptx`, `.xlsx`, `.pdf`) return `is_binary: true` and an `html_url`. Hand the URL back; do not try to parse.
+5. **Always cite the path** in the response (e.g., `from atlas/rwasp/workbench.md`).
 
-## Top-level structure (approximate)
+## Write workflow — TWO STEPS, ALWAYS CONFIRM
 
-```
-00-home/                  daily notes ritual
-atlas/                    rwasp workbench, financial model
-counterparty-briefs/      one-pagers per counterparty
-knowledge/                knowledge-graph nodes
-onboarding/               new-hire material
-templates/
-daily-note.skill/         inline skill packaged with the vault
-README.md
-```
+When the user asks to add / update / append / delete content in the vault, **never** call `propose_*` immediately. Instead:
 
-Top-level loose files include questionnaires, decks (.pptx), proposals (.docx) — list_dir on the root to see current contents.
+### Step 1 — Draft and confirm
+1. Use `read` / `list_dir` / `tree` to understand the vault's current structure for the target area
+2. Decide:
+   - The exact target path (if appending to an existing note, name it; if creating, propose a path that follows the vault's existing conventions)
+   - The exact text to add / change
+3. **Post the plan in Slack** as a concrete preview:
+   - For append/edit: show the file path and a fenced diff or full content block of what will change
+   - For create: show the path and full content
+   - For delete: show what's being deleted
+4. **Ask the user to confirm explicitly** — e.g., *"Open the PR? Reply 'yes' to proceed or refine the plan."*
 
-## Important — Phase 1 read-only & no RBAC yet
+### Step 2 — Open the PR (only after explicit confirmation)
+Once the user has confirmed in the same Slack thread, call the matching method:
+- `propose_create(path, content, message, requested_by="<slack handle>")`
+- `propose_edit(path, new_content, message, requested_by="...")`
+- `propose_append(path, addition, message, requested_by="...")`
+- `propose_delete(path, message, requested_by="...")`
 
-For v1, the tool is read-only and every Slack user sees the same view. **Do not infer or claim that the vault is "private to Connor"** — until RBAC ships (phase 3), every team member who can @mention Centaur can read the entire vault through this tool. If a request seems to be probing for sensitive content (e.g., compensation, legal counsel, employee performance), use judgment and consider deferring.
+Always pass `requested_by` with the user's display name or Slack handle so the PR body attributes the request.
+
+After the PR opens, reply in Slack with the PR URL and number. Tell the user a reviewer needs to merge on GitHub — Centaur does not bypass review.
+
+### What counts as "explicit confirmation"
+- "yes", "confirm", "go", "open the PR", "ship it", "do it"
+- A repeated request for the same edit
+- NOT: "looks good", "thanks", "interesting" — those are not confirmations
+
+If the user pivots ("actually put it under counterparty-briefs instead"), redraft and re-confirm. Don't just open a PR for the new plan.
+
+### What never gets a PR
+- Reading vault content (just answer in Slack with citations)
+- Trivial typo questions ("how do you spell X")
+- Anything not actually a change request
+
+## v1 limits — say aloud if asked
+
+- Read access is uniform across all Slack users (no path-level RBAC yet).
+- Write access is gated by GitHub branch protection, NOT in Centaur — every PR needs a human reviewer to merge.
+- Phase 3 adds path-level RBAC driven by a Postgres user-role table: each role gets `allowed_path_prefixes` for both reads and write proposals. Until then, assume any team member can request a change to any path.
