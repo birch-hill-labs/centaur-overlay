@@ -64,10 +64,14 @@ def _http() -> httpx.Client:
     return httpx.Client(
         base_url=API_BASE,
         headers={
-            # iron-proxy will overwrite Authorization with the real token at the
-            # network edge. Setting any non-empty placeholder ensures the header
-            # is present so iron-proxy's match_headers rule fires.
-            "Authorization": "Bearer placeholder",
+            # iron-proxy uses REPLACE mode for the GITHUB_TOKEN secret: it scans
+            # the Authorization header for the literal string "GITHUB_TOKEN" and
+            # substitutes it with the secret value (which lives in 1P as the
+            # full Authorization value, e.g. "Bearer github_pat_..."). So we
+            # send the placeholder string itself, NOT a Bearer-prefixed version.
+            # The substitution happens at the network edge before the request
+            # leaves the cluster; this process never sees the real token.
+            "Authorization": "GITHUB_TOKEN",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "centaur-obsidian-vault/0.1",
