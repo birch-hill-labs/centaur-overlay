@@ -1,133 +1,79 @@
-<img width="1500" height="500" alt="Centaur banner" src="https://github.com/user-attachments/assets/cc85cdb1-5a72-4eb2-ba1b-2e0a8fbbf691" />
+# Birch Hill Centaur Overlay
 
-<h4 align="center">
-    Example organization overlay for Centaur.
-</h4>
+Birch Hill Holdings' Centaur organization overlay. Forked from
+[paradigmxyz/centaur-acme](https://github.com/paradigmxyz/centaur-acme).
 
-<p align="center">
-  Package your tools, workflows, skills, and sandbox guidance as a reusable
-  overlay image.
-</p>
+Carries Birch Hill–specific tools, skills, system prompt, and (eventually)
+workflows that the base [Centaur](https://github.com/paradigmxyz/centaur)
+deployment mounts at runtime.
 
-<p align="center">
-  <a href="#use-this-template">Use This Template</a> •
-  <a href="#what-you-customize">What You Customize</a> •
-  <a href="#build-the-overlay-image">Build</a> •
-  <a href="#verify-in-a-running-deployment">Verify</a>
-</p>
+## Layout
 
-## Overview
-
-`centaur-acme` is a public, forkable template for creating an organization
-overlay for [Centaur](https://github.com/paradigmxyz/centaur). It is
-intentionally small and free of private data. Use it as the starting point for
-shipping org-specific capabilities without forking the core platform.
-
-The overlay image is copied into Centaur at runtime:
-
-```text
-centaur-acme repo
-    |
-    v
-overlay image
-    |
-    +-- /app/overlay/org in the API
-    +-- /home/agent/overlay/org in sandbox pods
+```
+.agents/skills/
+  birch-hill-vault/      When + how to use the obsidian_vault tool
+tools/
+  obsidian_vault/        Read + propose-via-PR access to birch-hill-labs/obsidian-vault
+services/sandbox/
+  SYSTEM_PROMPT.md       Birch Hill agent voice + posture
 ```
 
-## Use This Template
+## Tools
 
-1. Click **Use this template** in GitHub, or fork the repo if you want to keep a
-   visible upstream relationship.
-2. Rename ACME examples to your organization or team name.
-3. Replace the toy CRM tool with one small real integration.
-4. Update the sandbox prompt and skill to match the behavior your agents should
-   follow.
-5. Build and publish the overlay image, then point your Centaur Helm values at
-   that image.
+### `obsidian_vault`
 
-Keep credentials out of this repository. Tools should request secrets through
-Centaur's secret system instead of committing values or `.env` files.
+Two-way access to Birch Hill's institutional knowledge in the private
+[`birch-hill-labs/obsidian-vault`](https://github.com/birch-hill-labs/obsidian-vault)
+repo via the GitHub REST API.
 
-## What You Customize
+**Reads** are immediate:
+`read`, `list_dir`, `search`, `tree`.
 
-The template demonstrates the extension points an organization normally owns:
+**Writes** open a pull request against `main`. Centaur never pushes to `main`
+directly. The skill enforces a draft-in-Slack → confirm → PR flow so users
+review the change before it becomes a PR:
+`propose_create`, `propose_edit`, `propose_append`, `propose_delete`, `list_proposals`.
 
-- `tools/` for API-discovered tools
-- `workflows/` for durable workflows
-- `.agents/skills/` for sandbox-loaded skills
-- `services/sandbox/SYSTEM_PROMPT.md` for organization-specific agent guidance
+Branch protection on `main` (configure on GitHub) is the actual gate for
+what lands in the vault.
 
-## Repository Map
+#### Required out-of-band setup
 
-```text
-.
-├── .agents/skills/acme-support/     # sandbox skill loaded with the overlay
-├── services/sandbox/SYSTEM_PROMPT.md
-├── tools/acme_crm/                  # toy CRM tool with sample data
-├── workflows/daily_acme_brief.py    # example durable workflow
-├── tests/
-└── Dockerfile                       # copies the overlay to /overlay
-```
+1. **1Password vault item** `GITHUB_VAULT_TOKEN` (CONCEALED field `credential`)
+   in `Birch Hill Centaur Vault`. Value: `Bearer <ghp_...>` where the token
+   is a fine-grained PAT scoped to `birch-hill-labs/obsidian-vault` with:
+   - Contents: **Read and write**
+   - Pull requests: **Read and write**
+   - Metadata: **Read**
+2. **Branch protection on `main`** in the vault repo: require at least 1
+   reviewer, block direct pushes. (Settings → Branches → Branch protection rules.)
 
-## Build the overlay image
+## Phase plan
+
+- **v1 (this commit):** Read + propose-via-PR `obsidian_vault` tool, the
+  `birch-hill-vault` skill enforcing draft → confirm → PR, BH-specific
+  system prompt. No user-role enforcement at the tool layer; anyone who
+  can @mention Centaur can read everything and propose changes to anywhere.
+- **Phase 2:** Port Connor's per-seat Claude Code skills into
+  `.agents/skills/` so the team shares them via Slack.
+- **Phase 3 — vault RBAC:** Postgres-backed `user_roles` table. Each role
+  has `allowed_path_prefixes`. `read` / `list_dir` / `search` / `tree`
+  filter to allowed prefixes for the calling Slack user; `propose_*` rejects
+  changes outside their allowed prefixes. Only admin role can mutate roles
+  (Connor's Slack ID hardcoded as bootstrap admin).
+- **Phase 4:** `/onboard` Slack slash command + onboarding persona + skill.
+- **Phase 5:** Per-user token-usage tracking middleware (chargeback / throttle).
+
+See the parent [centaur-infra](https://github.com/birch-hill-labs/centaur-infra)
+fork for cluster + image-tag wiring.
+
+## Build
 
 ```bash
-docker build -t ghcr.io/<org>/<overlay-repo>:local .
+docker buildx build --platform linux/amd64 \
+  -t ghcr.io/birch-hill-labs/centaur-overlay:sha-$(git rev-parse --short HEAD) \
+  --push .
 ```
 
-The image copies this repository to `/overlay`. Centaur's Helm chart mounts that
-path at `/app/overlay/org` in the API and `/home/agent/overlay/org` in sandbox
-pods.
-
-## Use with Helm
-
-```yaml
-overlay:
-  image:
-    repository: ghcr.io/<org>/<overlay-repo>
-    tag: sha-0000000
-    pullPolicy: IfNotPresent
-    sourcePath: /overlay
-```
-
-For the full GitOps example, pair this repo with
-[`centaur-acme-infra`](https://github.com/paradigmxyz/centaur-acme-infra).
-
-## Included examples
-
-`tools/acme_crm` is a toy CRM tool with no external credentials. It gives agents
-something organization-specific to discover and call.
-
-`workflows/daily_acme_brief.py` is a minimal recurring workflow that asks an
-agent for a daily operating summary.
-
-`.agents/skills/acme-support/SKILL.md` is a sandbox skill that demonstrates how
-ACME-specific playbooks are packaged.
-
-`services/sandbox/SYSTEM_PROMPT.md` is appended to the base sandbox prompt when
-the overlay is mounted.
-
-## Verify in a running deployment
-
-From the API pod:
-
-```bash
-echo "$TOOL_DIRS"
-echo "$WORKFLOW_DIRS"
-ls -la /app/overlay/org
-```
-
-From a sandbox:
-
-```bash
-echo "$CENTAUR_OVERLAY_DIR"
-ls "$CENTAUR_OVERLAY_DIR"
-ls "$CENTAUR_OVERLAY_DIR/.agents/skills"
-```
-
-## Local checks
-
-```bash
-uv run pytest
-```
+The image only needs to contain the contents of this repo; the chart copies
+`/overlay/.` into the API and sandbox pods.

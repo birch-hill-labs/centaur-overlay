@@ -1,0 +1,21 @@
+[project]
+name = "obsidian-vault"
+version = "0.1.0"
+description = "Read Birch Hill's institutional knowledge from the obsidian-vault GitHub repo"
+requires-python = ">=3.11"
+license = "Apache-2.0 OR MIT"
+dependencies = ["httpx>=0.28.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.centaur]
+module = "client.py"
+description = "Read, list, search, and tree the Birch Hill obsidian-vault (markdown files of institutional knowledge: counterparty briefs, atlas/rwasp workbench, daily notes, knowledge graph, onboarding docs)."
+# Iron-proxy injects GITHUB_VAULT_TOKEN as an Authorization Bearer header
+# on outbound requests to api.github.com so the tool can read birch-hill-labs/obsidian-vault.
+# Token is a GitHub PAT with `repo` (or fine-grained `contents:read`) scoped to that single repo.
+secrets = [
+  {type = "http", name = "GITHUB_VAULT_TOKEN", match_headers = ["Authorization"], hosts = ["api.github.com"]},
+]
