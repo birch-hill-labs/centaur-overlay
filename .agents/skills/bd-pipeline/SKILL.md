@@ -51,6 +51,9 @@ When a deal reaches **Qualifying**, stand up its workspace:
 ## Outbound packet (what we send)
 The stylized **oABS Product Doc.pdf** goes to every Capital / Ecosystem counterparty; approved **Originator tearsheets** then flow to Capital + Ecosystem parties — that distribution *is* Deal Placement. Log every send in `sent_log`.
 
+## Updating Linear
+Use the **`linear`** tool for ALL Linear operations — `get_issue` (e.g. `BIR-123`), `list_issues`, `update_issue` (title / description / state / assignee / priority), `create_issue`, `add_comment`. **Never shell out to the sandbox for Linear** (`uv run` / bash hitting the Linear API will fail — the API key is injected only at the tool layer, not the sandbox). Re-read the live issue with `get_issue` before changing it, and **confirm with the user before closing or canceling** an issue (state → Done / Canceled). When a deal update creates a trackable next step, propose a `create_issue`; when it resolves one, propose the `update_issue`.
+
 ## Rules
 - **Weighted-revenue pipeline = Originator + Curator deals only** (`value_usd × likelihood`). Capital / Ecosystem / Service never count as revenue.
 - **Verify before closing.** Never close/merge a Linear issue or archive a deal off a pattern match — re-read the live card/issue first.
