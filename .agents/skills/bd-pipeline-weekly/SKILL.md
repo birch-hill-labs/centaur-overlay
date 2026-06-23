@@ -18,7 +18,7 @@ The weekly heartbeat that keeps the Sheet, Linear, and the vault aligned and sur
    - **This week, by owner** — each owner's `next_action`s across their cards.
    - **Weighted pipeline** — total + per-track subtotal.
    - **Cross-deal blockers** — any card with a `blocked_by` link whose blocker is itself stale (e.g. Solana Foundation ← Tilray).
-4. **Propose the PR** — the regenerated workbook (replacing the prior file) with the prior week frozen as its `Week Of` tab. Post the link; the team confirms before it lands.
+4. **Propose the PR** — bundle the regenerated workbook (a **binary `.xlsx`**) plus any card edits into **one PR via `obsidian_vault.propose_files`**: pass the workbook as `content_b64` (base64 of the raw bytes) and text cards as `content`. The prior week stays frozen as its `Week Of` tab. **Never** hand-roll GitHub API calls in the sandbox to commit the binary — `propose_files` handles auth (iron-proxy), binary content, and the atomic multi-file commit. Post the link; the team confirms before it lands.
 
 ## Automates vs escalates
 - **Automates (proposes via PR):** regenerate the Sheet, freeze the snapshot, sync status from Linear, and the stale / missing / gate flags.
