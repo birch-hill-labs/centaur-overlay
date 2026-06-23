@@ -581,6 +581,112 @@ class ObsidianVaultClient:
         ]
         return {"state": state, "count": len(items), "proposals": items}
 
+    def propose_files(
+        self,
+        files: list[dict[str, Any]],
+        message: str,
+        *,
+        requested_by: str | None = None,
+        description: str | None = None,
+        branch: str | None = None,
+    ) -> dict[str, Any]:
+        """Open ONE PR that creates/updates/deletes MULTIPLE vault files in a
+        single commit — including BINARY files (e.g. a regenerated `.xlsx`).
+
+        Use this whenever a change spans more than one file or touches a binary
+        file (the per-file propose_edit/propose_create only handle single UTF-8
+        text files). NEVER reimplement the GitHub API in the sandbox to do this:
+        this method already handles auth (via iron-proxy), binary content, and
+        the atomic multi-file commit. Same confirm-first contract as propose_edit.
+
+        Args:
+          files: non-empty list of file specs. Each item is one of:
+            - {"path": str, "content": str}      # text file (UTF-8); create or update
+            - {"path": str, "content_b64": str}  # binary file; base64 of the raw bytes
+            - {"path": str, "delete": True}      # remove the file
+          message: PR title and commit message.
+          requested_by: Slack handle/name of the requester (PR body).
+          description: Free-form additional PR body content.
+          branch: Custom branch name; defaults to `slack/<slug>-<ts>`.
+
+        Returns {"pr_number", "pr_url", "branch", "commit_sha", "files": [...]}.
+        """
+        if not files:
+            raise ValueError("files must be a non-empty list")
+        specs = [(_normalize_path(f["path"]), f) for f in files]
+        br = branch or _default_branch_name(message)
+        with _http() as http:
+            # Base commit + tree on main.
+            ref = http.get(f"/repos/{REPO}/git/refs/heads/{DEFAULT_BRANCH}")
+            ref.raise_for_status()
+            base_commit_sha = ref.json()["object"]["sha"]
+            bc = http.get(f"/repos/{REPO}/git/commits/{base_commit_sha}")
+            bc.raise_for_status()
+            base_tree_sha = bc.json()["tree"]["sha"]
+
+            # One blob per file; a null sha entry deletes.
+            tree: list[dict[str, Any]] = []
+            for path, f in specs:
+                if f.get("delete"):
+                    tree.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+                    continue
+                if f.get("content_b64") is not None:
+                    blob = http.post(
+                        f"/repos/{REPO}/git/blobs",
+                        json={"content": f["content_b64"], "encoding": "base64"},
+                    )
+                else:
+                    blob = http.post(
+                        f"/repos/{REPO}/git/blobs",
+                        json={"content": f.get("content", ""), "encoding": "utf-8"},
+                    )
+                blob.raise_for_status()
+                tree.append({"path": path, "mode": "100644", "type": "blob", "sha": blob.json()["sha"]})
+
+            tr = http.post(
+                f"/repos/{REPO}/git/trees",
+                json={"base_tree": base_tree_sha, "tree": tree},
+            )
+            tr.raise_for_status()
+            cm = http.post(
+                f"/repos/{REPO}/git/commits",
+                json={"message": message, "tree": tr.json()["sha"], "parents": [base_commit_sha]},
+            )
+            cm.raise_for_status()
+            new_commit_sha = cm.json()["sha"]
+
+            cr = http.post(
+                f"/repos/{REPO}/git/refs",
+                json={"ref": f"refs/heads/{br}", "sha": new_commit_sha},
+            )
+            if cr.status_code == 422 and "already exists" in cr.text.lower():
+                http.patch(
+                    f"/repos/{REPO}/git/refs/heads/{br}",
+                    json={"sha": new_commit_sha, "force": True},
+                ).raise_for_status()
+            else:
+                cr.raise_for_status()
+
+            pr = self._open_pr(
+                http,
+                title=message,
+                branch=br,
+                body=_pr_body(
+                    action="edit",
+                    path=", ".join(p for p, _ in specs),
+                    message=message,
+                    description=description,
+                    requested_by=requested_by,
+                ),
+            )
+        return {
+            "pr_number": pr["number"],
+            "pr_url": pr["html_url"],
+            "branch": br,
+            "commit_sha": new_commit_sha,
+            "files": [p for p, _ in specs],
+        }
+
     # ------------------------------------------------------------------
     # Internal helpers (not exposed as tool methods because of the leading _)
     # ------------------------------------------------------------------
