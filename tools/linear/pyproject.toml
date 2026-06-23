@@ -1,0 +1,26 @@
+[project]
+name = "linear"
+version = "0.1.0"
+description = "Read and write Birch Hill's Linear issues (get / list / update / create / comment)"
+requires-python = ">=3.11"
+license = "Apache-2.0 OR MIT"
+dependencies = ["httpx>=0.28.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.centaur]
+module = "client.py"
+description = "Read and write Birch Hill's Linear issues — get an issue (e.g. BIR-123), list/search issues, update fields (title/description/state/assignee/priority), create issues, and add comments. Use this for ALL Linear operations; never shell out to the sandbox for Linear (the credential is injected only at the tool layer)."
+# Iron-proxy injects the Linear API key as the Authorization header on outbound
+# requests to api.linear.app (same REPLACE mode as the obsidian_vault tool's
+# GITHUB_VAULT_TOKEN). The secret never lives in this process or the sandbox.
+#
+# Out-of-band setup (one-time): add the Linear API key to the Birch Hill Centaur
+# Vault 1Password item as LINEAR_API_KEY (the full Authorization header value),
+# and configure iron-proxy to inject it for host api.linear.app. The key must
+# have write scope (issue create / update).
+secrets = [
+  {type = "http", name = "LINEAR_API_KEY", match_headers = ["Authorization"], hosts = ["api.linear.app"]},
+]
