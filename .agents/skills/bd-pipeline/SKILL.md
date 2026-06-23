@@ -27,6 +27,7 @@ Frontmatter fields and who owns them:
 - `links` (typed: `chain` · `warehouse_lender` · `tvl_partner` · `custody` · `blocked_by` · `related`)
 - `sent_log` (what we sent + when) · `next_action` · `linear_project`
 - `deal_workbook` (Drive link to the per-deal economics workbook — created at **Qualifying**; holds deal-size / yield / performance fees / curation split. The card carries only the rolled-up revenue figure; the workbook holds the math.)
+- `vault_book` · `tearsheet` (Drive / Google Doc links to the deal's Vault Book and Tear Sheet deliverables — each surfaced as its own clickable column in the generated Sheet. Set these to the shareable Google Doc URL once the doc exists.)
 - `slack_channel` (the opportunity's dedicated internal Slack channel — `#deal-<name>` at **Qualifying**, renamed to `#project-<name>` once **Active**. Any update posted in the current channel routes straight to this card.)
 
 ## The 5 tracks
