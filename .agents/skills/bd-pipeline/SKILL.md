@@ -55,6 +55,18 @@ The stylized **oABS Product Doc.pdf** goes to every Capital / Ecosystem counterp
 ## Updating Linear
 Use the **`linear`** tool for ALL Linear operations — `get_issue` (e.g. `BIR-123`), `list_issues`, `update_issue` (title / description / state / assignee / priority), `create_issue`, `add_comment`. **Never shell out to the sandbox for Linear** (`uv run` / bash hitting the Linear API will fail — the API key is injected only at the tool layer, not the sandbox). Re-read the live issue with `get_issue` before changing it, and **confirm with the user before closing or canceling** an issue (state → Done / Canceled). When a deal update creates a trackable next step, propose a `create_issue`; when it resolves one, propose the `update_issue`.
 
+## Team roster — resolve owners / assignees through this
+The Linear accounts have **no display names** — they read as bare email handles (`cf`, `bv`, `jt`, `jf`), so a first name can't be matched against Linear, and the initials invite the wrong guess. Map every owner / assignee to its canonical email below; **never infer from initials** — `jt` is **Jon**, `jf` is **Jack**.
+
+| Name | Owner shorthand | Email |
+|---|---|---|
+| Connor Flanagan | Connor | cf@birchhill.io |
+| Bhavin Vaid | Bhavin | bv@birchhill.io |
+| Jon Thomas | Jon | jt@birchhill.io |
+| Jack Forlines | Jack | jf@birchhill.io |
+
+Pass the name or email straight to the `linear` tool (`assignee: "Jack"` or `assignee: "jf@birchhill.io"`) — the same roster is baked into the tool as a fallback, so either resolves deterministically. If a *new* person appears who isn't in this roster, ask who they are rather than guessing.
+
 ## Rules
 - **Use the vault tool's write methods — never reimplement them in the sandbox.** Edit text via `propose_edit` / `propose_create` / `propose_append`; bundle multi-file or **binary** changes (e.g. the regenerated `.xlsx` workbook) into one PR via `propose_files` (binary as base64 `content_b64`). Hand-rolling GitHub API calls in the sandbox fails — the credential is injected only at the tool layer, and binary writes break on UTF‑8 encoding. **If a capability is genuinely missing, do the part you can and say what you couldn't — don't improvise.**
 - **Weighted-revenue pipeline = Originator + Curator deals only** (`value_usd × likelihood`). Capital / Ecosystem / Service never count as revenue.

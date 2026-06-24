@@ -26,6 +26,19 @@ import httpx
 API_BASE = "https://api.linear.app"
 _IDENTIFIER_RE = re.compile(r"^([A-Za-z]+)-(\d+)$")
 
+# Birch Hill team roster. The Linear accounts have NO display names set — they
+# read as bare email handles ("cf", "bv", "jt", "jf"), so a first name like
+# "Jack" matches nothing in Linear and an agent is left to guess from initials
+# (and guesses wrong: jt is Jon Thomas, jf is Jack Forlines). Resolve known
+# team members through this map first so assignment is deterministic. Keep the
+# Jon/Jack ↔ jt/jf mapping in mind — the initials invite exactly the wrong swap.
+_ROSTER = {
+    "connor": "cf@birchhill.io", "connor flanagan": "cf@birchhill.io", "cf": "cf@birchhill.io",
+    "bhavin": "bv@birchhill.io", "bhavin vaid": "bv@birchhill.io", "bv": "bv@birchhill.io",
+    "jon": "jt@birchhill.io", "jon thomas": "jt@birchhill.io", "jt": "jt@birchhill.io",
+    "jack": "jf@birchhill.io", "jack forlines": "jf@birchhill.io", "jf": "jf@birchhill.io",
+}
+
 
 def _http() -> httpx.Client:
     return httpx.Client(
@@ -164,7 +177,7 @@ class LinearClient:
           title, description: new text.
           state: workflow state NAME (e.g. "In Progress", "Done", "Canceled");
             resolved against the issue's team's states.
-          assignee: assignee NAME or EMAIL (e.g. "Jack" or "jt@birchhill.io"); resolved to the user id.
+          assignee: assignee NAME or EMAIL (e.g. "Jack" or "jf@birchhill.io"); resolved to the user id.
           priority: 0=None, 1=Urgent, 2=High, 3=Medium, 4=Low.
 
         CONFIRM with the user before closing/canceling an issue (state ->
@@ -210,7 +223,7 @@ class LinearClient:
           team: team name or key (e.g. "Birch Hill" / "BIR").
           title: issue title (required).
           description: markdown body.
-          assignee: assignee name or email (e.g. "Jack" or "jt@birchhill.io").
+          assignee: assignee name or email (e.g. "Jack" or "jf@birchhill.io").
           priority: 0=None, 1=Urgent, 2=High, 3=Medium, 4=Low.
           project: project name (optional).
         """
@@ -287,10 +300,13 @@ class LinearClient:
         raise ValueError(f"State {name!r} not found. Available: {[s['name'] for s in states]}")
 
     def _resolve_user(self, http: httpx.Client, who: str) -> str:
-        # Accept a NAME or an email. "@" -> exact email; otherwise match the
-        # display/full name (case-insensitive), so "Jack" resolves without a
-        # separate lookup.
+        # Accept a NAME, a handle, or an email. Resolve known Birch Hill people
+        # through _ROSTER first (deterministic — the Linear accounts have no
+        # display names, so "Jack"/"Jon" can't be matched against Linear and
+        # must NOT be guessed from email initials). For anyone outside the
+        # roster, fall back to a name/displayName search; "@" -> exact email.
         who = (who or "").strip()
+        who = _ROSTER.get(who.lower(), who)
         if "@" in who:
             flt = "{email: {eq: $v}}"
         else:
