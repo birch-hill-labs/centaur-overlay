@@ -164,7 +164,7 @@ class LinearClient:
           title, description: new text.
           state: workflow state NAME (e.g. "In Progress", "Done", "Canceled");
             resolved against the issue's team's states.
-          assignee: assignee EMAIL; resolved to the user id.
+          assignee: assignee NAME or EMAIL (e.g. "Jack" or "jt@birchhill.io"); resolved to the user id.
           priority: 0=None, 1=Urgent, 2=High, 3=Medium, 4=Low.
 
         CONFIRM with the user before closing/canceling an issue (state ->
@@ -210,7 +210,7 @@ class LinearClient:
           team: team name or key (e.g. "Birch Hill" / "BIR").
           title: issue title (required).
           description: markdown body.
-          assignee: assignee email.
+          assignee: assignee name or email (e.g. "Jack" or "jt@birchhill.io").
           priority: 0=None, 1=Urgent, 2=High, 3=Medium, 4=Low.
           project: project name (optional).
         """
@@ -246,6 +246,30 @@ class LinearClient:
         res = data["commentCreate"]
         return {"success": res["success"], "url": (res.get("comment") or {}).get("url")}
 
+    def list_users(self, query: str | None = None, limit: int = 50) -> dict[str, Any]:
+        """List workspace users (id, name, email), optionally filtered by name.
+
+        `assignee` on update_issue / create_issue already accepts a NAME or an
+        email, so you usually don't need this — reach for it only when a name is
+        ambiguous or you want to confirm the right person before assigning.
+        """
+        if query:
+            gql = ("query($q: String!, $n: Int!) { users(filter: {or: ["
+                   "{name: {containsIgnoreCase: $q}}, {displayName: {containsIgnoreCase: $q}}]}, "
+                   "first: $n) { nodes { id name displayName email active } } }")
+            variables = {"q": query, "n": min(limit, 100)}
+        else:
+            gql = "query($n: Int!) { users(first: $n) { nodes { id name displayName email active } } }"
+            variables = {"n": min(limit, 100)}
+        with _http() as http:
+            nodes = _gql(http, gql, variables)["users"]["nodes"]
+        users = [
+            {"id": u["id"], "name": u.get("displayName") or u.get("name"),
+             "email": u.get("email"), "active": u.get("active")}
+            for u in nodes
+        ]
+        return {"users": users, "count": len(users)}
+
     # ---- resolvers --------------------------------------------------------
     def _parse_identifier(self, identifier: str) -> tuple[str, float]:
         m = _IDENTIFIER_RE.match((identifier or "").strip())
@@ -262,12 +286,19 @@ class LinearClient:
                 return s["id"]
         raise ValueError(f"State {name!r} not found. Available: {[s['name'] for s in states]}")
 
-    def _resolve_user(self, http: httpx.Client, email: str) -> str:
-        query = "query($e: String!) { users(filter: {email: {eq: $e}}, first: 1) { nodes { id email } } }"
-        data = _gql(http, query, {"e": email})
-        nodes = data["users"]["nodes"]
+    def _resolve_user(self, http: httpx.Client, who: str) -> str:
+        # Accept a NAME or an email. "@" -> exact email; otherwise match the
+        # display/full name (case-insensitive), so "Jack" resolves without a
+        # separate lookup.
+        who = (who or "").strip()
+        if "@" in who:
+            flt = "{email: {eq: $v}}"
+        else:
+            flt = "{or: [{name: {containsIgnoreCase: $v}}, {displayName: {containsIgnoreCase: $v}}]}"
+        query = f"query($v: String!) {{ users(filter: {flt}, first: 5) {{ nodes {{ id name displayName email }} }} }}"
+        nodes = _gql(http, query, {"v": who})["users"]["nodes"]
         if not nodes:
-            raise ValueError(f"User not found: {email}")
+            raise ValueError(f"User not found: {who!r}. Use list_users to find the right name or email.")
         return nodes[0]["id"]
 
     def _resolve_team(self, http: httpx.Client, team: str) -> str:
