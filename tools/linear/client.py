@@ -259,6 +259,70 @@ class LinearClient:
         res = data["commentCreate"]
         return {"success": res["success"], "url": (res.get("comment") or {}).get("url")}
 
+    def add_attachment(
+        self,
+        identifier: str,
+        file_path: str,
+        *,
+        title: str | None = None,
+        subtitle: str | None = None,
+    ) -> dict[str, Any]:
+        """Attach a file (PDF, image, doc, …) to an issue, uploading the bytes.
+
+        Use this for ANY file attachment — never hand-roll the upload. Linear's
+        flow is three steps and easy to get subtly wrong: an attachment row with
+        no bytes behind it is created "successfully" but renders as "Failed to
+        load". This does all three steps correctly: request a signed upload URL,
+        PUT the raw bytes to it, then create the attachment from the asset URL.
+
+        Args:
+          identifier: issue identifier, e.g. "BIR-211".
+          file_path: local path to the file (e.g. one downloaded via the slack tool).
+          title, subtitle: attachment label shown in Linear.
+        """
+        import mimetypes
+        import os
+
+        with open(file_path, "rb") as fh:
+            data = fh.read()
+        filename = os.path.basename(file_path)
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        issue = self.get_issue(identifier)
+
+        with _http() as http:
+            up = _gql(
+                http,
+                """mutation($size: Int!, $ct: String!, $fn: String!) {
+                  fileUpload(size: $size, contentType: $ct, filename: $fn) {
+                    success uploadFile { uploadUrl assetUrl headers { key value } }
+                  }
+                }""",
+                {"size": len(data), "ct": content_type, "fn": filename},
+            )["fileUpload"]["uploadFile"]
+
+            # PUT the raw bytes to the signed storage URL. This is NOT
+            # api.linear.app, so it must NOT carry the Linear Authorization
+            # header (that would break the signature) — send only the signed
+            # headers Linear returned, verbatim. Use a bare client.
+            put_headers = {h["key"]: h["value"] for h in up["headers"]}
+            put_headers.setdefault("Content-Type", content_type)
+            resp = httpx.put(up["uploadUrl"], content=data, headers=put_headers, timeout=120.0)
+            resp.raise_for_status()
+
+            inp: dict[str, Any] = {"issueId": issue["id"], "url": up["assetUrl"]}
+            if title is not None:
+                inp["title"] = title
+            if subtitle is not None:
+                inp["subtitle"] = subtitle
+            res = _gql(
+                http,
+                """mutation($input: AttachmentCreateInput!) {
+                  attachmentCreate(input: $input) { success attachment { id title url } }
+                }""",
+                {"input": inp},
+            )["attachmentCreate"]
+        return {"success": res["success"], "attachment": res["attachment"]}
+
     def list_users(self, query: str | None = None, limit: int = 50) -> dict[str, Any]:
         """List workspace users (id, name, email), optionally filtered by name.
 
