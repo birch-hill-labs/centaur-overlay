@@ -6,6 +6,13 @@ requires-python = ">=3.11"
 license = "Apache-2.0 OR MIT"
 dependencies = ["httpx>=0.28.0"]
 
+# Registration marker: install-tool-shims (base image >= sha-bc4a1e4) only shims
+# a tool when its pyproject declares a [project.scripts] entry. The value is
+# never executed — execution routes through [tool.centaur].module (client.py) —
+# but the script NAME is the tool name the agent invokes, so it must stay "linear".
+[project.scripts]
+linear = "client:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
