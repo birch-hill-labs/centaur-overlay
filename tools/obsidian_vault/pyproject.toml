@@ -18,6 +18,16 @@ obsidian_vault = "client:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# This image's `centaur-tools run` builds the tool's wheel (uv + hatchling) before
+# importing client.py. The flat layout (client.py + __init__.py at the tool root)
+# gives hatchling nothing to package by default, so the build — and every tool
+# call — fails. Ship the tool dir as a package, remapped to the import name.
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.hatch.build.targets.wheel.sources]
+"." = "obsidian_vault"
+
 [tool.centaur]
 module = "client.py"
 description = "Read, list, search, and tree the Birch Hill obsidian-vault (markdown files of institutional knowledge: counterparty briefs, atlas/rwasp workbench, daily notes, knowledge graph, onboarding docs)."
