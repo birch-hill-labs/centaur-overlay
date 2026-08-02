@@ -64,14 +64,17 @@ def _http() -> httpx.Client:
     return httpx.Client(
         base_url=API_BASE,
         headers={
-            # iron-proxy uses REPLACE mode for the GITHUB_TOKEN secret: it scans
-            # the Authorization header for the literal string "GITHUB_TOKEN" and
-            # substitutes it with the secret value (which lives in 1P as the
-            # full Authorization value, e.g. "Bearer github_pat_..."). So we
-            # send the placeholder string itself, NOT a Bearer-prefixed version.
+            # iron-proxy uses REPLACE mode: it scans the Authorization header for
+            # the literal secret NAME declared in pyproject [tool.centaur].secrets
+            # (GITHUB_VAULT_TOKEN) and substitutes the secret value (which lives in
+            # 1P as the full Authorization value, e.g. "Bearer github_pat_..."). So
+            # we send the placeholder name itself, NOT a Bearer-prefixed version.
+            # The placeholder MUST match the pyproject secret name exactly, or no
+            # substitution happens and GitHub returns 401 (cf. the linear tool,
+            # whose placeholder "LINEAR_API_KEY" matches its declared secret name).
             # The substitution happens at the network edge before the request
             # leaves the cluster; this process never sees the real token.
-            "Authorization": "GITHUB_TOKEN",
+            "Authorization": "GITHUB_VAULT_TOKEN",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "centaur-obsidian-vault/0.1",
