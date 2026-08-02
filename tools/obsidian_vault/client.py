@@ -74,7 +74,7 @@ def _http() -> httpx.Client:
             # whose placeholder "LINEAR_API_KEY" matches its declared secret name).
             # The substitution happens at the network edge before the request
             # leaves the cluster; this process never sees the real token.
-            "Authorization": "GITHUB_VAULT_TOKEN",
+            "Authorization": "GITHUB_TOKEN",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "centaur-obsidian-vault/0.1",
